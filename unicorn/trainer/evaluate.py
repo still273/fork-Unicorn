@@ -26,7 +26,12 @@ def evaluate_moe(encoder, moelayer, classifier, data_loader, args=None, index=-1
     confidences = {}
     probility = {}
     averagegateweight = torch.Tensor([0 for _ in range(args.expertsnum)]).cuda()
-    for (reviews, mask,segment, labels,exm_id,task_id) in data_loader:
+    l_ids, r_ids, label_list, predictions = [], [], [], []
+    for entry in data_loader:
+        if len(entry) ==8:
+            (reviews, mask, segment, labels, exm_id, task_id, l_id, r_id) = entry
+        else:
+            (reviews, mask, segment, labels, exm_id, task_id) = entry
         reviews = make_cuda(reviews)
         mask = make_cuda(mask)
         segment = make_cuda(segment)
@@ -51,6 +56,12 @@ def evaluate_moe(encoder, moelayer, classifier, data_loader, args=None, index=-1
             if flag == "get_prob":
                 for i in range(len(preds)):
                     probility[exm_id[i].item()] = preds[i][1].item()
+            elif flag == 'get_preds':
+                label_list += list(labels.detach().cpu().numpy())
+                predictions += list(preds.detach().cpu().numpy())
+                l_ids += list(l_id.numpy())
+                r_ids += list(r_id.numpy())
+
             if write:
                 for i in range(len(preds)):
                     confidences[exm_id[i].item()] = abs(preds[i][0].item()-preds[i][1].item())
@@ -107,6 +118,8 @@ def evaluate_moe(encoder, moelayer, classifier, data_loader, args=None, index=-1
     print("====================================================")
     if flag == "get_prob":
         return probility
+    elif flag == "get_preds":
+        return predictions, label_list, l_ids, r_ids
     if all == 1:
         return f1, recall, acc
     return f1

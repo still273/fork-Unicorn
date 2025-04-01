@@ -4,14 +4,15 @@ import torch
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(self, input_ids, input_mask, segment_ids, label_id, exm_id, task_id=-1):
+    def __init__(self, input_ids, input_mask, segment_ids, label_id, exm_id, l_id=None, r_id=None, task_id=-1):
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
         self.label_id = label_id
         self.exm_id = exm_id
         self.task_id = task_id
-
+        self.l_id = l_id
+        self.r_id = r_id
 
 def convert_fea_to_tensor(features_list, batch_size, do_train):
     features = [x[0] for x in features_list]
@@ -22,8 +23,13 @@ def convert_fea_to_tensor(features_list, batch_size, do_train):
     all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.long)
     all_exm_ids = torch.tensor([f.exm_id for f in features], dtype=torch.long)
     all_task_ids = torch.tensor([f.task_id for f in features], dtype=torch.long)
+    if not type(features[0].l_id) == type(None):
+        all_l_ids = torch.tensor([f.l_id for f in features], dtype=torch.long)
+        all_r_ids = torch.tensor([f.r_id for f in features], dtype=torch.long)
 
-    dataset = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_exm_ids, all_task_ids)
+        dataset = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_exm_ids, all_task_ids, all_l_ids, all_r_ids)
+    else:
+        dataset = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_exm_ids, all_task_ids)
     
     
     if do_train == 0:
@@ -38,7 +44,7 @@ def convert_fea_to_tensor(features_list, batch_size, do_train):
 
 def convert_examples_to_features(pairs=None, labels=None, max_seq_length=128, tokenizer=None,
                                     cls_token="[CLS]", sep_token='[SEP]',
-                                    pad_token=0,task_ids=None):
+                                    pad_token=0,task_ids=None, l_ids=None, r_ids=None):
     features = []
     if labels == None:
         labels = [0] * len(pairs)
@@ -56,6 +62,9 @@ def convert_examples_to_features(pairs=None, labels=None, max_seq_length=128, to
                 assert len(input_ids) == max_seq_length
                 assert len(input_mask) == max_seq_length
                 assert len(segment_ids) == max_seq_length
+                if type(l_ids)==type(None):
+                    l_ids = [None]*len(labels)
+                    r_ids = [None]*len(labels)
                 if task_ids:
                     fea_pair.append(
                         InputFeatures(input_ids = input_ids,
@@ -63,6 +72,8 @@ def convert_examples_to_features(pairs=None, labels=None, max_seq_length=128, to
                                 segment_ids = segment_ids,
                                 label_id = labels[ex_index],
                                 exm_id = ex_index,
+                                l_id = l_ids[ex_index],
+                                r_id = r_ids[ex_index],
                                 task_id = task_ids[ex_index]) )
                 else:
                     fea_pair.append(
@@ -71,6 +82,8 @@ def convert_examples_to_features(pairs=None, labels=None, max_seq_length=128, to
                                 segment_ids = segment_ids,
                                 label_id = labels[ex_index],
                                 exm_id = ex_index,
+                                l_id=l_ids[ex_index],
+                                r_id=r_ids[ex_index],
                                 task_id = -1) )
         else:
             continue
@@ -78,7 +91,7 @@ def convert_examples_to_features(pairs=None, labels=None, max_seq_length=128, to
     return features
 
 
-def convert_examples_to_features_roberta(pairs=None, labels=None, max_seq_length=128, tokenizer=None,
+def convert_examples_to_features_roberta(pairs=None, labels=None, l_ids=None, r_ids=None, max_seq_length=128, tokenizer=None,
                                     cls_token="<s>", sep_token='</s>',
                                     pad_token=0):
     features = []
@@ -104,7 +117,10 @@ def convert_examples_to_features_roberta(pairs=None, labels=None, max_seq_length
                             input_mask = input_mask,
                             segment_ids = segment_ids,
                             label_id = labels[ex_index],
-                            exm_id = ex_index) )
+                            exm_id = ex_index,
+                            l_id=l_ids[ex_index],
+                            r_id=r_ids[ex_index],
+                                  ) )
         else:
             continue
         features.append(fea_pair)

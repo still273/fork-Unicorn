@@ -6,6 +6,7 @@ import numpy as np
 from unicorn.utils.utils import make_cuda, save_model
 from unicorn.utils import param
 from .evaluate import evaluate_moe, evaluate_wo_moe
+import time
 
 def train_moe(args, encoder, moelayer, classifiers,
             train_data_loaders, valid_data_loaders=None, metrics=None, need_save_model=True):
@@ -27,8 +28,10 @@ def train_moe(args, encoder, moelayer, classifiers,
         best_encoder = copy.deepcopy(encoder)
         best_moelayer = copy.deepcopy(moelayer)
         best_classifiers = copy.deepcopy(classifiers)
-
+    results = []
+    best_epoch = []
     for epoch in range(args.pre_epochs):
+        t_epoch = time.perf_counter()
         encoder.train()
         moelayer.train()
         classifiers.train()
@@ -83,7 +86,7 @@ def train_moe(args, encoder, moelayer, classifiers,
                                 args.pre_epochs,
                                 step + 1,
                                 cls_loss.item()))
-
+        t_train = time.perf_counter()
         if valid_data_loaders:
             avg_valid = []
             for k in range(len(valid_data_loaders)):
@@ -95,6 +98,14 @@ def train_moe(args, encoder, moelayer, classifiers,
                     avg_valid.append(recall)
                 if metrics[k]=='acc' or metrics[k]=='hit':
                     avg_valid.append(acc)
+
+        t_valid = time.perf_counter()
+        valid_f1 = 0
+        if valid_data_loaders:
+            valid_f1 = np.mean(avg_valid)
+        curr_results = [epoch, valid_f1, t_train-t_epoch, t_valid-t_train ]
+        results += [curr_results]
+        if valid_data_loaders:
             if np.mean(avg_valid) > bestf1:
                 print("best epoch number: ",epoch)
                 bestf1 = np.mean(avg_valid)
@@ -102,9 +113,8 @@ def train_moe(args, encoder, moelayer, classifiers,
                 best_encoder = copy.deepcopy(encoder)
                 best_moelayer = copy.deepcopy(moelayer)
                 best_classifiers = copy.deepcopy(classifiers)
-        
-    
-    if not valid_data_loaders:
+                best_epoch = curr_results
+    if not valid_data_loaders or args.last_epoch:
         best_encoder = copy.deepcopy(encoder)
         best_moelayer = copy.deepcopy(moelayer)
         best_classifiers = copy.deepcopy(classifiers)
@@ -117,7 +127,8 @@ def train_moe(args, encoder, moelayer, classifiers,
     
     end = datetime.datetime.now()
     print("Time: ",end-start)
-    return best_encoder, best_moelayer, best_classifiers
+    results += [best_epoch]
+    return best_encoder, best_moelayer, best_classifiers, results
 
 def train_wo_moe(args, encoder, classifiers,
             train_data_loaders, valid_data_loaders=None, metrics=None, need_save_model=True, draw=True):

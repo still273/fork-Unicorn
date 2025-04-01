@@ -91,15 +91,15 @@ def parse_arguments():
     
     return parser.parse_args()
 
-args = parse_arguments()
 def set_seed(seed):
     random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.device_count() > 0:
         torch.cuda.manual_seed_all(seed)
 
-def main():
+def run_zero_ins(args):
     # argument setting
+    res_per_epoch=0
     print("=== Argument Setting ===")
     print("experts",args.expertsnum)
     print("encoder: " + str(args.model))
@@ -115,7 +115,7 @@ def main():
     if args.model == 'mpnet':
         tokenizer = AutoTokenizer.from_pretrained('all-mpnet-base-v2')
     if args.model == 'deberta_base':
-        tokenizer = DebertaTokenizer.from_pretrained('deberta-base')
+        tokenizer = DebertaTokenizer.from_pretrained('microsoft/deberta-base')
     if args.model == 'deberta_large':
         tokenizer = DebertaTokenizer.from_pretrained('deberta-large')
     if args.model == 'xlnet':
@@ -224,10 +224,10 @@ def main():
         print("train datasets num: ",len(train_data_loaders))
         print("valid datasets num: ",len(valid_data_loaders))
         if args.wmoe:
-            encoder, moelayer, classifiers = pretrain.train_moe(args, encoder, moelayer, classifiers, train_data_loaders, valid_data_loaders, train_metrics)
+            encoder, moelayer, classifiers, res_per_epoch = pretrain.train_moe(args, encoder, moelayer, classifiers, train_data_loaders, valid_data_loaders, train_metrics)
         else:
             encoder, classifiers = pretrain.train_wo_moe(args, encoder, classifiers, train_data_loaders, valid_data_loaders, train_metrics)
-
+            res_per_epoch=0
             
     test_sets = []
     test_metrics = []
@@ -295,8 +295,11 @@ def main():
     print("F1: ", f1s)
     print("Recall: ", recalls)
     print("ACC.", accs)
+
+    return res_per_epoch
                 
                 
 
 if __name__ == '__main__':
-    main()
+    args = parse_arguments()
+    run_zero_ins(args)

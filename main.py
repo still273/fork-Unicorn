@@ -14,6 +14,7 @@ from unicorn.trainer import pretrain, evaluate
 from unicorn.utils.utils import get_data, init_model
 from unicorn.dataprocess import predata, dataformat
 from unicorn.utils import param
+import time
 
 csv.field_size_limit(500 * 1024 * 1024)
 
@@ -96,7 +97,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-args = parse_arguments()
+
 
 def set_seed(seed):
     random.seed(seed)
@@ -104,7 +105,7 @@ def set_seed(seed):
     if torch.cuda.device_count() > 0:
         torch.cuda.manual_seed_all(seed)
 
-def main():
+def run_unicorn(args):
     # argument setting
     print("=== Argument Setting ===")
     print("experts",args.expertsnum)
@@ -120,7 +121,7 @@ def main():
     if args.model == 'mpnet':
         tokenizer = AutoTokenizer.from_pretrained('all-mpnet-base-v2')
     if args.model == 'deberta_base':
-        tokenizer = DebertaTokenizer.from_pretrained('deberta-base')
+        tokenizer = DebertaTokenizer.from_pretrained('microsoft/deberta-base')
     if args.model == 'deberta_large':
         tokenizer = DebertaTokenizer.from_pretrained('deberta-large')
     if args.model == 'xlnet':
@@ -211,6 +212,7 @@ def main():
         train_data_loaders = []
         test_data_loaders = []
         valid_data_loaders = []
+        t_start = time.process_time()
         if args.model in ['bert','deberta_base','deberta_large','distilbert','mpnet']:
             for i in range(len(train_sets)):
                 fea = predata.convert_examples_to_features([ [x[0]+" [SEP] " +x[1]] for x in train_sets[i] ], [int(x[2]) for x in train_sets[i]], args.max_seq_length, tokenizer)
@@ -245,7 +247,8 @@ def main():
         print("train datasets num: ",len(train_data_loaders))
         print("test datasets num: ",len(test_data_loaders))
         print("valid datasets num: ",len(valid_data_loaders))
-        encoder, moelayer, classifiers = pretrain.train_moe(args, encoder, moelayer, classifiers, train_data_loaders, valid_data_loaders, metrics)
+        print("Prep Time", time.process_time() - t_start)
+        encoder, moelayer, classifiers, res_per_epoch = pretrain.train_moe(args, encoder, moelayer, classifiers, train_data_loaders, valid_data_loaders, metrics)
     
     if args.pretrain and args.shuffle:
         train_sets = []
@@ -306,6 +309,7 @@ def main():
         valid_data_loaders = []
         
         train_sets = [train_sets]
+        t_start = time.process_time()
         if args.model in ['bert','deberta_base','deberta_large','distilbert','mpnet']:
             for i in range(len(train_sets)):
                 fea = predata.convert_examples_to_features([ [x[0]+" [SEP] " +x[1]] for x in train_sets[i] ], [int(x[2]) for x in train_sets[i]], args.max_seq_length, tokenizer)
@@ -342,7 +346,8 @@ def main():
         print("train datasets num: ",len(train_data_loaders))
         print("test datasets num: ",len(test_data_loaders))
         print("valid datasets num: ",len(valid_data_loaders))
-        encoder, moelayer, classifiers = pretrain.train_moe(args, encoder, moelayer, classifiers, [train_data_loaders], valid_data_loaders, metrics)
+        print("Prep Time", time.process_time() - t_start)
+        encoder, moelayer, classifiers, res_per_epoch = pretrain.train_moe(args, encoder, moelayer, classifiers, [train_data_loaders], valid_data_loaders, metrics)
     
     f1s = []
     recalls = []
@@ -360,7 +365,9 @@ def main():
     print("F1: ", f1s)
     print("Recall: ", recalls)
     print("ACC.", accs)
+    return res_per_epoch
             
 
 if __name__ == '__main__':
-    main()
+    args = parse_arguments()
+    run_unicorn(args)
